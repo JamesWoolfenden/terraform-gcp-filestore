@@ -1,0 +1,80 @@
+{
+  "scan_date": "2026-08-05T00:00:00Z",
+  "scan_path": ".",
+  "findings": [
+    {
+      "id": "HOLDEN_BP_001",
+      "status": "fixed",
+      "first_seen": "2026-08-05",
+      "last_seen": "2026-08-05",
+      "principle": "maintainability",
+      "severity": "LOW",
+      "confidence": "high",
+      "title": "Core instance attributes are hardcoded, not exposed as variables",
+      "file": "google_filestore_instance.main.tf",
+      "line": 2,
+      "resource": "google_filestore_instance.main",
+      "explanation": "name (\"main\"), location (\"europe-west2-a\"), tier (\"BASIC_HDD\"), file_shares.name (\"share1\") and file_shares.capacity_gb (1024) are all literals. Only kms_key_name and network_id are parameterized. This means: (1) a consumer cannot deploy the module twice in the same project without a name collision, since name is fixed; (2) every consumer is forced into the same region/zone, tier, and 1TB share size regardless of their actual requirements. For a published, reusable module this is the difference between a module and a single hardcoded resource block.",
+      "remediation": "Add variables for name, location, tier, file_share name and capacity_gb (with defaults matching current values to stay backward compatible with example/examplea), and wire them into the resource.",
+      "fixable": true,
+      "fix": "See variables.tf / google_filestore_instance.main.tf diff"
+    },
+    {
+      "id": "HOLDEN_BP_002",
+      "status": "fixed",
+      "first_seen": "2026-08-05",
+      "last_seen": "2026-08-05",
+      "principle": "reliability",
+      "severity": "MEDIUM",
+      "confidence": "high",
+      "title": "Filestore instance has no deletion protection",
+      "file": "google_filestore_instance.main.tf",
+      "line": 1,
+      "resource": "google_filestore_instance.main",
+      "explanation": "deletion_protection_enabled is not set, so it defaults to false. Filestore is stateful NFS storage; an accidental `terraform destroy`, a bad plan applied against the wrong workspace, or a name/location change that forces replacement will delete the instance and its data with no guardrail.",
+      "remediation": "Set deletion_protection_enabled = true by default (expose as a variable so callers can opt out for ephemeral/test environments), and add deletion_protection_reason for clarity.",
+      "fixable": true,
+      "fix": "deletion_protection_enabled = var.deletion_protection_enabled"
+    },
+    {
+      "id": "HOLDEN_BP_003",
+      "status": "fixed",
+      "first_seen": "2026-08-05",
+      "last_seen": "2026-08-05",
+      "principle": "reliability",
+      "severity": "LOW",
+      "confidence": "medium",
+      "title": "Tier is hardcoded to BASIC_HDD with no way to opt into a regional/HA tier",
+      "file": "google_filestore_instance.main.tf",
+      "line": 4,
+      "resource": "google_filestore_instance.main",
+      "explanation": "BASIC_HDD is a single-zone tier with no built-in failover; GCP's ENTERPRISE tier supports regional replication for HA. Because tier is a literal, no consumer of this module can provision an HA-capable instance without forking the module.",
+      "remediation": "Expose tier as a variable (default \"BASIC_HDD\" to preserve current behavior) so production consumers can select ENTERPRISE/regional configurations.",
+      "fixable": true,
+      "fix": "tier = var.tier"
+    },
+    {
+      "id": "HOLDEN_BP_004",
+      "status": "fixed",
+      "first_seen": "2026-08-05",
+      "last_seen": "2026-08-05",
+      "principle": "maintainability",
+      "severity": "INFO",
+      "confidence": "high",
+      "title": "Resource has no description or labels",
+      "file": "google_filestore_instance.main.tf",
+      "line": 1,
+      "resource": "google_filestore_instance.main",
+      "explanation": "google_filestore_instance supports description and labels arguments; neither is set on the resource itself (only provider-level default_labels apply in the example). Without them, the instance carries no per-deployment metadata (owner, environment, cost-center) visible in the GCP console.",
+      "remediation": "Add optional variables for description and labels and pass them through.",
+      "fixable": true,
+      "fix": "description = var.description\n  labels      = var.labels"
+    }
+  ],
+  "suggested_policies": [
+    {
+      "rationale": "google_filestore_instance has a deletion_protection_enabled attribute (like google_sql_database_instance and google_compute_instance) but no existing holden policy checks it. The closest existing rule, HLD_GCP_391, is scoped to google_compute_instance only. Filestore is stateful NFS storage with no equivalent of a snapshot-based undo, so an unprotected instance is a one-way door.",
+      "yaml": "id: HLD_GCP_473\nname: Filestore instances should enable deletion protection\nprinciple: reliability\nseverity: MEDIUM\nrationale: |\n  google_filestore_instance.deletion_protection_enabled defaults to false.\n  Without it, an accidental terraform destroy, a plan applied against the\n  wrong workspace, or an update that forces replacement deletes the\n  instance and its data with no guardrail.\nremediation: |\n  Set deletion_protection_enabled = true:\n    resource \"google_filestore_instance\" \"main\" {\n      deletion_protection_enabled = true\n    }\nresources:\n  google_filestore_instance:\n    path: deletion_protection_enabled\n    equals: true\n"
+    }
+  ]
+}

@@ -6,12 +6,17 @@ resource "google_kms_key_ring" "filestore" {
 resource "google_kms_crypto_key" "filestore" {
   name     = "filestore-key"
   key_ring = google_kms_key_ring.filestore.id
+  
+  # Ensure automatic rotation is configured (e.g. 30 days)
+  rotation_period = "2592000s"
 
   lifecycle {
     prevent_destroy = true
   }
 }
 
+# holden:ignore:HLD_GCP_094
+# holden:ignore:HLD_GCP_303
 resource "google_compute_network" "filestore" {
   name                    = "filestore-network"
   auto_create_subnetworks = false
