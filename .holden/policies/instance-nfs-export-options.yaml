@@ -1,0 +1,34 @@
+id: HLD_GCP_475
+name: Filestore file shares should not rely on default (unrestricted) NFS export options
+principle: network-security
+severity: MEDIUM
+rationale: |
+  When file_shares.nfs_export_options is omitted, Filestore applies its own
+  default: access_mode READ_WRITE, squash_mode NO_ROOT_SQUASH, and ip_ranges
+  effectively unrestricted to any client that can route to the share. This
+  means every reachable client gets read-write access with root privileges
+  preserved (no root squash), with no share-layer restriction beyond
+  whatever network-layer controls (firewall rules, VPC boundaries) happen to
+  be in place. Explicitly setting nfs_export_options with scoped ip_ranges
+  and squash_mode is defense-in-depth independent of network configuration.
+remediation: |
+  Set nfs_export_options explicitly on the file share:
+
+    resource "google_filestore_instance" "main" {
+      file_shares {
+        capacity_gb = 1024
+        name        = "share1"
+
+        nfs_export_options {
+          ip_ranges   = ["10.0.0.0/24"]
+          access_mode = "READ_WRITE"
+          squash_mode = "ROOT_SQUASH"
+        }
+      }
+    }
+resources:
+  google_filestore_instance:
+    path: file_shares
+    any_in:
+      path: nfs_export_options
+      not_null: true

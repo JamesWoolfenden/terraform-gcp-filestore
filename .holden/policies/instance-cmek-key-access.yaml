@@ -1,0 +1,48 @@
+id: HLD_GCP_474
+name: Filestore instances using CMEK must grant the Filestore service agent key access
+principle: key-management
+severity: HIGH
+rationale: |
+  Setting kms_key_name on a google_filestore_instance does not by itself grant
+  Filestore's service agent permission to use the key. GCP requires the
+  Filestore service agent (service-<PROJECT_NUMBER>@gcp-sa-filestore.iam.gserviceaccount.com)
+  to hold roles/cloudkms.cryptoKeyEncrypterDecrypter on the referenced key, via
+  a separate IAM binding that Terraform never creates automatically. Without
+  it, instance creation fails at apply time with a permission-denied error,
+  and under time pressure teams sometimes work around this with a broader,
+  ad hoc grant instead of a scoped binding.
+remediation: |
+  Grant the Filestore service agent access to the key:
+
+    resource "google_project_service_identity" "filestore" {
+      provider = google-beta
+      service  = "file.googleapis.com"
+    }
+
+    resource "google_kms_crypto_key_iam_member" "filestore" {
+      crypto_key_id = google_kms_crypto_key.main.id
+      role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+      member        = "serviceAccount:${google_project_service_identity.filestore.email}"
+    }
+resources:
+  google_filestore_instance:
+    filter:
+      path: kms_key_name
+      not_null: true
+    any:
+      - requires_companion:
+          type: google_kms_crypto_key_iam_member
+          linked_via:
+            from: kms_key_name
+            to: crypto_key_id
+          where:
+            path: role
+            equals: roles/cloudkms.cryptoKeyEncrypterDecrypter
+      - requires_companion:
+          type: google_kms_crypto_key_iam_binding
+          linked_via:
+            from: kms_key_name
+            to: crypto_key_id
+          where:
+            path: role
+            equals: roles/cloudkms.cryptoKeyEncrypterDecrypter
