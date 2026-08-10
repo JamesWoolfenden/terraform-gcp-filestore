@@ -55,7 +55,7 @@ resource "google_compute_firewall" "filestore" {
 }
 
 # holden:ignore:HLD_TF_026 — examples intentionally use ../../ to reference the local module root
-# holden:ignore:HLD_TF_065 - 
+# holden:ignore:HLD_TF_065 -
 module "filestore" {
   source       = "../../"
   kms_key_name = google_kms_crypto_key.filestore.id
